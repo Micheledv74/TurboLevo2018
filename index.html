@@ -95,6 +95,26 @@
             transform-origin: center;
             transition: transform 0.3s ease;
         }
+        #connect-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #status-message {
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            color: white;
+            background-color: rgba(0,0,0,0.5);
+            padding: 5px;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
@@ -149,59 +169,84 @@
             </div>
         </div>
     </div>
+    <button id="connect-button">Connetti alla bici</button>
+    <div id="status-message"></div>
 
     <script src="https://cdn.cobi.bike/cobi.js/0.44.0/cobi.js"></script>
     <script>
-        // Inizializzazione di COBI.bike
-        COBI.init('token — can be anything right now').then(function() {
-            console.log('COBI.bike inizializzato');
-            subscribeToUpdates();
-        }).catch(function(error) {
-            console.error('Errore di inizializzazione COBI:', error);
-            alert('Errore di connessione a COBI.bike. Riprova più tardi.');
-        });
+        const connectButton = document.getElementById('connect-button');
+        const statusMessage = document.getElementById('status-message');
+
+        connectButton.addEventListener('click', initializeCOBI);
+
+        function initializeCOBI() {
+            statusMessage.textContent = "Connessione in corso...";
+            connectButton.disabled = true;
+
+            COBI.init('token — can be anything right now').then(function() {
+                console.log('COBI.bike inizializzato');
+                statusMessage.textContent = "Connesso a COBI.bike";
+                connectButton.textContent = "Disconnetti";
+                connectButton.onclick = disconnectCOBI;
+                subscribeToUpdates();
+            }).catch(function(error) {
+                console.error('Errore di inizializzazione COBI:', error);
+                statusMessage.textContent = "Errore di connessione. Riprova.";
+                connectButton.disabled = false;
+            });
+        }
+
+        function disconnectCOBI() {
+            statusMessage.textContent = "Disconnesso";
+            connectButton.textContent = "Connetti alla bici";
+            connectButton.onclick = initializeCOBI;
+            resetDashboard();
+        }
+
+        function resetDashboard() {
+            updateSpeedometer(0);
+            updateMetric('cadence', 0, ' rpm', 120);
+            updateMetric('battery', 0, '%', 100);
+            updateMetric('power', 0, ' W', 500);
+            updateAssistLevel(0);
+            updateMetric('range', 0, ' km', 100);
+            updateIncline(0);
+        }
 
         function subscribeToUpdates() {
-            // Velocità
             COBI.rideService.speed.subscribe(function(speed) {
-                updateSpeedometer(speed * 3.6); // Converti da m/s a km/h
+                updateSpeedometer(speed * 3.6);
             });
 
-            // Cadenza
             COBI.rideService.cadence.subscribe(function(cadence) {
-                updateMetric('cadence', cadence, ' rpm', 120); // Assumiamo una cadenza massima di 120 rpm
+                updateMetric('cadence', cadence, ' rpm', 120);
             });
 
-            // Batteria
             COBI.batteryService.stateOfCharge.subscribe(function(charge) {
                 updateMetric('battery', charge, '%', 100);
             });
 
-            // Potenza
             COBI.rideService.power.subscribe(function(power) {
-                updateMetric('power', power, ' W', 500); // Assumiamo una potenza massima di 500W
+                updateMetric('power', power, ' W', 500);
             });
 
-            // Livello di assistenza
             COBI.rideService.assistanceLevel.subscribe(function(level) {
                 updateAssistLevel(level);
             });
 
-            // Autonomia
             COBI.navigationService.distanceToDestination.subscribe(function(distance) {
-                updateMetric('range', distance / 1000, ' km', 100); // Converti da m a km, assumiamo un'autonomia massima di 100km
+                updateMetric('range', distance / 1000, ' km', 100);
             });
 
-            // Inclinazione (simulata, poiché COBI.bike non fornisce direttamente questo dato)
             setInterval(function() {
-                let incline = Math.sin(Date.now() / 10000) * 15; // Simula un'inclinazione che varia tra -15° e +15°
+                let incline = Math.sin(Date.now() / 10000) * 15;
                 updateIncline(incline);
             }, 1000);
         }
 
         function updateSpeedometer(speed) {
-            const maxSpeed = 50; // Velocità massima in km/h
-            const angle = Math.min((speed / maxSpeed) * 270, 270); // Limita l'angolo a 270 gradi
+            const maxSpeed = 50;
+            const angle = Math.min((speed / maxSpeed) * 270, 270);
             const speedArc = document.getElementById('speed-arc');
             const speedHand = document.getElementById('speed-hand');
 
