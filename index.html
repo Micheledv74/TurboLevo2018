@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>COBI.bike Dashboard per Specialized Turbo Levo 2018</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #1e1e1e;
+            color: white;
+            height: 100%;
+            width: 100%;
+        }
+        .dashboard {
+            display: flex;
+            height: 100%;
+            width: 100%;
+            max-width: 896px;
+            max-height: 414px;
+            margin: auto;
+            overflow: hidden;
+        }
+        .speedometer {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .stats {
+            flex: 1;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            grid-gap: 10px;
+            padding: 10px;
+        }
+        .stat-card {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 10px;
+            text-align: center;
+        }
+        .stat-card h2 {
+            margin: 0;
+            font-size: 14px;
+            opacity: 0.7;
+        }
+        .stat-card p {
+            margin: 5px 0;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        #speed-value {
+            font-size: 48px;
+            font-weight: bold;
+        }
+        #speed-unit {
+            font-size: 18px;
+            opacity: 0.7;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background-color: rgba(255,255,255,0.2);
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #4CAF50;
+            transition: width 0.3s ease;
+        }
+        .assist-levels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+        }
+        .assist-level {
+            width: 30%;
+            height: 10px;
+            background-color: rgba(255,255,255,0.2);
+            border-radius: 5px;
+        }
+        .assist-level.active {
+            background-color: #FFC107;
+        }
+        .incline-indicator {
+            width: 40px;
+            height: 40px;
+            margin: 5px auto;
+            transform-origin: center;
+            transition: transform 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="speedometer">
+            <svg width="200" height="200" viewBox="0 0 200 200">
+                <circle cx="100" cy="100" r="90" fill="none" stroke="#333" stroke-width="20"/>
+                <path id="speed-arc" d="M100,100 L100,10 A90,90 0 0,1 100,190 Z" fill="#4CAF50"/>
+                <line id="speed-hand" x1="100" y1="100" x2="100" y2="20" stroke="white" stroke-width="2"/>
+                <circle cx="100" cy="100" r="5" fill="white"/>
+            </svg>
+            <div id="speed-value">0</div>
+            <div id="speed-unit">km/h</div>
+        </div>
+        <div class="stats">
+            <div class="stat-card">
+                <h2>Cadenza</h2>
+                <p id="cadence">0 rpm</p>
+                <div class="progress-bar"><div id="cadence-fill" class="progress-fill" style="width: 0%"></div></div>
+            </div>
+            <div class="stat-card">
+                <h2>Batteria</h2>
+                <p id="battery">0%</p>
+                <div class="progress-bar"><div id="battery-fill" class="progress-fill" style="width: 0%"></div></div>
+            </div>
+            <div class="stat-card">
+                <h2>Potenza</h2>
+                <p id="power">0 W</p>
+                <div class="progress-bar"><div id="power-fill" class="progress-fill" style="width: 0%"></div></div>
+            </div>
+            <div class="stat-card">
+                <h2>Assistenza</h2>
+                <p id="assist">0/3</p>
+                <div class="assist-levels">
+                    <div class="assist-level" id="assist-1"></div>
+                    <div class="assist-level" id="assist-2"></div>
+                    <div class="assist-level" id="assist-3"></div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <h2>Autonomia</h2>
+                <p id="range">0 km</p>
+                <div class="progress-bar"><div id="range-fill" class="progress-fill" style="width: 0%"></div></div>
+            </div>
+            <div class="stat-card">
+                <h2>Inclinazione</h2>
+                <p id="incline">0°</p>
+                <svg class="incline-indicator" viewBox="0 0 40 40">
+                    <line x1="20" y1="5" x2="20" y2="35" stroke="white" stroke-width="2"/>
+                    <polygon points="15,10 25,10 20,5" fill="white"/>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.cobi.bike/cobi.js/0.44.0/cobi.js"></script>
+    <script>
+        // Inizializzazione di COBI.bike
+        COBI.init('token — can be anything right now').then(function() {
+            console.log('COBI.bike inizializzato');
+            subscribeToUpdates();
+        }).catch(function(error) {
+            console.error('Errore di inizializzazione COBI:', error);
+            alert('Errore di connessione a COBI.bike. Riprova più tardi.');
+        });
+
+        function subscribeToUpdates() {
+            // Velocità
+            COBI.rideService.speed.subscribe(function(speed) {
+                updateSpeedometer(speed * 3.6); // Converti da m/s a km/h
+            });
+
+            // Cadenza
+            COBI.rideService.cadence.subscribe(function(cadence) {
+                updateMetric('cadence', cadence, ' rpm', 120); // Assumiamo una cadenza massima di 120 rpm
+            });
+
+            // Batteria
+            COBI.batteryService.stateOfCharge.subscribe(function(charge) {
+                updateMetric('battery', charge, '%', 100);
+            });
+
+            // Potenza
+            COBI.rideService.power.subscribe(function(power) {
+                updateMetric('power', power, ' W', 500); // Assumiamo una potenza massima di 500W
+            });
+
+            // Livello di assistenza
+            COBI.rideService.assistanceLevel.subscribe(function(level) {
+                updateAssistLevel(level);
+            });
+
+            // Autonomia
+            COBI.navigationService.distanceToDestination.subscribe(function(distance) {
+                updateMetric('range', distance / 1000, ' km', 100); // Converti da m a km, assumiamo un'autonomia massima di 100km
+            });
+
+            // Inclinazione (simulata, poiché COBI.bike non fornisce direttamente questo dato)
+            setInterval(function() {
+                let incline = Math.sin(Date.now() / 10000) * 15; // Simula un'inclinazione che varia tra -15° e +15°
+                updateIncline(incline);
+            }, 1000);
+        }
+
+        function updateSpeedometer(speed) {
+            const maxSpeed = 50; // Velocità massima in km/h
+            const angle = Math.min((speed / maxSpeed) * 270, 270); // Limita l'angolo a 270 gradi
+            const speedArc = document.getElementById('speed-arc');
+            const speedHand = document.getElementById('speed-hand');
+
+            speedArc.setAttribute('d', `M100,100 L100,10 A90,90 0 ${angle > 180 ? 1 : 0},1 ${100 + 90 * Math.sin(angle * Math.PI / 180)},${100 - 90 * Math.cos(angle * Math.PI / 180)} Z`);
+            speedHand.setAttribute('transform', `rotate(${angle}, 100, 100)`);
+            
+            document.getElementById('speed-value').textContent = speed.toFixed(1);
+        }
+
+        function updateMetric(id, value, unit, max) {
+            document.getElementById(id).textContent = value.toFixed(1) + unit;
+            document.getElementById(id + '-fill').style.width = (value / max * 100) + '%';
+        }
+
+        function updateAssistLevel(level) {
+            document.getElementById('assist').textContent = level + '/3';
+            for (let i = 1; i <= 3; i++) {
+                document.getElementById('assist-' + i).classList.toggle('active', i <= level);
+            }
+        }
+
+        function updateIncline(incline) {
+            document.getElementById('incline').textContent = incline.toFixed(1) + '°';
+            document.querySelector('.incline-indicator').style.transform = `rotate(${incline}deg)`;
+        }
+    </script>
+</body>
+</html>
